@@ -12,3 +12,4 @@ db = client[DB_NAME]
 
 messages_collection = db["messages"]
 banned_users_collection = db["banned_users"]
+users_collection = db["users"]

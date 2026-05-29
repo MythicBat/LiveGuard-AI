@@ -23,6 +23,10 @@ function App() {
   const [message, setMessage] = useState("");
   const [role, setRole] = useState("Moderator");
   const ws = useRef(null);
+  const [authMode, setAuthMode] = useState("login");
+  const [password, setPassword] = useState("");
+  const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
     ws.current = new WebSocket(WS_URL);
@@ -47,6 +51,43 @@ function App() {
 
     return () => ws.current?.close();
   }, []);
+
+  const handleAuth = async () => {
+    setAuthError("");
+
+    const endpoint = authMode === "login" ? "login" : "register";
+
+    const body = 
+      authMode === "login"
+        ? { username, password }
+        : { username, password, role };
+    
+    const response = await fetch(`${API_URL}/auth/${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      setAuthError(result.error || "Authentication failed");
+      return;
+    }
+
+    if (result.token) {
+      localStorage.setItem("liveguard_token", result.token);
+    }
+
+    setUser({
+      username: result.username,
+      role: result.role,
+    });
+
+    setRole(result.role);
+  };
 
   const sendMessage = () => {
     if (!message.trim()) return;
@@ -170,6 +211,78 @@ function App() {
     .sort((a, b) => b.averageRisk - a.averageRisk);
 
   const canModerate = role === "Moderator" || role === "Admin";
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="bg-slate-900 border border-slate-800 rouned-2xl p-8 w-full max-w-md">
+          <h1 className="text-3xl font-bold mb-2">LIVEGUARD AI</h1>
+          <p className="text-slate-400 mb-6">
+            Sign in to access the livestream moderation dashboard
+          </p>
+
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setAuthMode("login")}
+              className={`flex-1 py-2 rounded-lg ${
+                authMode === "login" ? "bg-purple-600" : "bg-slate-800"
+              }`}
+            >
+              Login
+            </button>
+
+            <button
+              onClick={() => setAuthMode("register")}
+              className={`flex-1 py-2 rounded-lg ${
+                authMode === "register" ? "bg-purple-600" : "bg-slate-800"
+              }`}
+            >
+              Register
+            </button>
+
+            <input
+              className="w-full bg-slate-800 rounded-lg px-3 py-2 mb-3 outline-none"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+            />
+
+            <input
+              type="password"
+              className="w-full bg-slate-800 rounded-lg px-3 py-2 mb-3 outline-none"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+            />
+
+
+            {authMode === "register" && (
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full bg-slate-800 rounded-lg px-3 py-2 mb-3 outline-none"
+              >
+                <option>Viewer</option>
+                <option>Moderator</option>
+                <option>Admin</option>
+              </select>
+            )}
+
+            {authError && (
+              <p className="text-red-400 text-sm mb-3">{authError}</p>
+            )}
+
+            <button
+              onClick={handleAuth}
+              className="w-full bg-purple-600 hover:bg-purple-700 py-2 rounded-lg font-medium"
+            >
+              {authMode === "login" ? "Login" : "Create Account"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6">

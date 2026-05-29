@@ -1,8 +1,9 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from moderation import analyse_message
-from models import ChatMessage
-from database import messages_collection, banned_users_collection
+from models import ChatMessage, UserRegister, UserLogin
+from database import messages_collection, banned_users_collection, users_collection
+from auth import hash_password, verify_password, create_access_token
 import json
 import time
 
@@ -23,6 +24,61 @@ active_rooms = {}
 @app.get("/")
 def root():
     return {"message": "LIVEGUARD AI backend is running with stream rooms"}
+
+@app.post("/auth/register")
+def register_user(user: UserRegister):
+    existing_user = users_collection.find_one({"username": user.username})
+
+    if existing_user:
+        return {"success": False, "error": "Username already exists"}
+
+    if user.role not in ["Viewer", "Moderator", "Admin"]:
+        return {"success": False, "error": "Invalid role"}
+
+    hashed = hash_password(user.password)
+
+    users_collection.insert_one(
+        {
+            "username": user.username,
+            "password": hashed,
+            "role": user.role,
+            "created_at": int(time.time()),
+        }
+    )
+
+    return {
+        "success": True,
+        "message": "User registered successfully",
+        "username": user.username,
+        "role": user.role,
+    }
+
+
+@app.post("/auth/login")
+def login_user(user: UserLogin):
+    existing_user = users_collection.find_one({"username": user.username})
+
+    if not existing_user:
+        return {"success": False, "error": "Invalid username or password"}
+
+    is_valid = verify_password(user.password, existing_user["password"])
+
+    if not is_valid:
+        return {"success": False, "error": "Invalid username or password"}
+
+    token = create_access_token(
+        {
+            "username": existing_user["username"],
+            "role": existing_user["role"],
+        }
+    )
+
+    return {
+        "success": True,
+        "token": token,
+        "username": existing_user["username"],
+        "role": existing_user["role"],
+    }
 
 
 @app.get("/rooms/{room_id}/messages")
