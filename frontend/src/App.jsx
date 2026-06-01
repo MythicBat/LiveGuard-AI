@@ -627,6 +627,36 @@ function App() {
                       Category: {msg.category}
                     </p>
 
+                    <div className="mt-3 bg-slate-900/80 border border-slate-700 rounded-xl p-3">
+                        <p className="text-xs text-purple-400 font-semibold mb-1">
+                          AI Moderation Assistant
+                        </p>
+
+                        <p className="text-sm text-slate-300">
+                          {msg.ai_explanation}
+                        </p>
+
+                        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-slate-500">Recommended</p>
+                            <p className="text-slate-200 font-medium">
+                              {msg.recommended_action?.toUpperCase()}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-slate-500">Confidence</p>
+                            <p className="text-slate-200 font-medium">
+                              {msg.confidence}%
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-500 mt-3">
+                          {msg.policy_reason}
+                        </p>
+                    </div>
+
                     {msg.flags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {msg.flags.map((flag) => (

@@ -28,23 +28,22 @@ SCAM_KEYWORDS = {
 }
 
 SPAM_PATTERNS = [
-    r"(.)\1{5,}",          # repeated letters e.g. loooool
-    r"https?://",          # links
-    r"www\.",              # links
-    r"[A-Z]{10,}",         # long uppercase text
+    r"(.)\1{5,}",
+    r"https?://",
+    r"www\.",
+    r"[A-Z]{10,}",
 ]
 
 
 def detect_keywords(text, keyword_map, category):
     score = 0
     flags = []
-
     lower_text = text.lower()
 
     for word, weight in keyword_map.items():
         if word in lower_text:
             score += weight
-            flags.append(category + ":" + word)
+            flags.append(f"{category}:{word}")
 
     return score, flags
 
@@ -81,22 +80,54 @@ def classify_category(flags):
     return "Safe"
 
 
+def build_ai_assistant(category, risk_score, flags):
+    if category == "Threat":
+        return {
+            "ai_explanation": "The message contains language that may imply physical harm or intimidation.",
+            "recommended_action": "ban" if risk_score >= 70 else "mute",
+            "confidence": min(95, risk_score + 20),
+            "policy_reason": "Potential violent threat or harmful intent.",
+        }
+
+    if category == "Harassment":
+        return {
+            "ai_explanation": "The message appears to target another user with insulting or abusive language.",
+            "recommended_action": "warn" if risk_score < 60 else "mute",
+            "confidence": min(90, risk_score + 15),
+            "policy_reason": "Harassment or personal attack.",
+        }
+
+    if category == "Scam / Spam":
+        return {
+            "ai_explanation": "The message contains promotional or suspicious wording commonly associated with scams or spam.",
+            "recommended_action": "mute" if risk_score < 70 else "ban",
+            "confidence": min(92, risk_score + 15),
+            "policy_reason": "Spam, scam, or suspicious promotional content.",
+        }
+
+    if category == "Spam":
+        return {
+            "ai_explanation": "The message shows spam-like behaviour such as excessive capitalization, links, or repeated characters.",
+            "recommended_action": "warn",
+            "confidence": min(85, risk_score + 10),
+            "policy_reason": "Low-quality or disruptive chat behaviour.",
+        }
+
+    return {
+        "ai_explanation": "No clear safety violation was detected.",
+        "recommended_action": "none",
+        "confidence": 98,
+        "policy_reason": "Message appears safe.",
+    }
+
+
 def analyse_message(text: str):
     total_score = 0
     all_flags = []
 
-    toxic_score, toxic_flags = detect_keywords(
-        text, TOXIC_KEYWORDS, "toxic"
-    )
-
-    threat_score, threat_flags = detect_keywords(
-        text, THREAT_KEYWORDS, "threat"
-    )
-
-    scam_score, scam_flags = detect_keywords(
-        text, SCAM_KEYWORDS, "scam"
-    )
-
+    toxic_score, toxic_flags = detect_keywords(text, TOXIC_KEYWORDS, "toxic")
+    threat_score, threat_flags = detect_keywords(text, THREAT_KEYWORDS, "threat")
+    scam_score, scam_flags = detect_keywords(text, SCAM_KEYWORDS, "scam")
     spam_score, spam_flags = detect_spam_patterns(text)
 
     total_score += toxic_score + threat_score + scam_score + spam_score
@@ -114,6 +145,7 @@ def analyse_message(text: str):
         severity = "safe"
 
     category = classify_category(all_flags)
+    ai_result = build_ai_assistant(category, risk_score, all_flags)
 
     return {
         "risk_score": risk_score,
@@ -121,4 +153,5 @@ def analyse_message(text: str):
         "category": category,
         "flags": all_flags,
         "is_flagged": risk_score >= 35,
+        **ai_result,
     }
