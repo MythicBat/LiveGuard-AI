@@ -29,6 +29,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [authError, setAuthError] = useState("");
   const ws = useRef(null);
+  const [cases, setCases] = useState([]);
+
 
   useEffect(() => {
     if (!user) return;
@@ -112,6 +114,54 @@ function App() {
     );
 
     setMessage("");
+  };
+
+  const createCase = async (id) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/rooms/${ROOM_ID}/cases/${id}`,
+        {
+          method: "POST",
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setCases((prev) => {
+          const exists = prev.some(
+            (c) => c.case_id === result.case.case_id
+          );
+
+          if (exists) return prev;
+
+          return [result.case, ...prev];
+        });
+      }
+    } catch (error) {
+      console.error("Failed to create case:", error);
+    }
+  };
+
+  const updateCaseStatus = async (caseId, status) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/rooms/${ROOM_ID}/cases/${caseId}/${status}`,
+        {
+          method: "PATCH",
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setCases((prev) => 
+          prev.map((c) => 
+            c.case_id === caseId ? result.case : c));
+      }
+    } catch (error) {
+      console.error("Failed to update case status:", error);
+    }
   };
 
   const takeAction = async (id, action) => {
@@ -563,6 +613,65 @@ function App() {
           )}
         </div>
 
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Case Review System</h2>
+
+          {cases.length === 0 ? (
+            <p className="text-slate-400">No cases created yet.</p>
+          ): (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {cases.map((caseItem) => (
+                <div
+                  key={caseItem.case_id}
+                  className="bg-slate-900/80 border border-slate-700 rounded-xl p-4"
+                >
+                  <div className="flex justify-between mb-2">
+                    <p className="font-semibold">Case #{caseItem.case_id}</p>
+
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full ${
+                        caseItem.priority === "High"
+                          ? "bg-red-950 text-red-400"
+                          : "bg-yellow-950 text-yellow-400"
+                      }`}
+                    >
+                      {caseItem.priority}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-slate-300 mb-2">
+                    @{caseItem.username}: "{caseItem.message}"
+                  </p>
+
+                  <p className="text-xs text-slate-500 mb-4">
+                    Category: {caseItem.category} · Risk {caseItem.risk_score}
+                  </p>
+
+                  <p className="text-sm text-slate-300 mb-3">
+                    {caseItem.ai_explanation}
+                  </p>
+
+                  <div className="flex gap-2">
+                    {["Open", "In Review", "Resolved"].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => updateCaseStatus(caseItem.case_id, status)}
+                        className={`px-3 py-1 rounded-lg text-xs ${
+                          caseItem.status === status
+                            ? "bg-purple-600 text-white"
+                            : "bg-slate-800 text-slate-400"
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5">
             <h2 className="text-xl font-semibold mb-4">Live Chat Simulator</h2>
@@ -743,6 +852,13 @@ function App() {
                             className="bg-red-700 hover:bg-red-800 px-3 py-1 rounded-lg text-sm"
                           >
                             Ban
+                          </button>
+
+                          <button
+                            onClick={() => createCase(msg.id)}
+                            className="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded-lg text-sm"
+                          >
+                            Create Case
                           </button>
                         </div>
                       ) : (

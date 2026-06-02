@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from moderation import analyse_message
 from models import ChatMessage, UserRegister, UserLogin
-from database import messages_collection, banned_users_collection, users_collection
+from database import messages_collection, banned_users_collection, users_collection, cases_collection
 from auth import hash_password, verify_password, create_access_token
 import json
 import time
@@ -170,6 +170,91 @@ async def take_action(room_id: str, msg_id: int, action: str):
             )
 
     return {"success": True, "message": updated_message}
+
+@app.post("/rooms/{room_id}/cases/{msg_id}")
+def create_case(room_id: str, msg_id: int):
+    message = messages_collection.find_one(
+        {"room_id": room_id, "id": msg_id},
+        {"_id": 0}
+    )
+
+    if not message:
+        return {"success": False, "error": "Message not found"}
+    
+    existing_case = cases_collection.find_one(
+        {"room_id": room_id, "message_id": msg_id},
+        {"_id": 0}
+    )
+
+    if existing_case:
+        return {
+            "success": True,
+            "message": "Case already exists for this message",
+            "case": existing_case,
+        }
+    
+    last_case = cases_collection.find_one(
+        {"room_id": room_id},
+        sort=[("case_id", -1)]
+    )
+
+    next_case_id = 1 if not last_case else last_case["case_id"] + 1
+
+    priority = "High" if message["risk_score"] >= 70 else "Medium"
+
+    case = {
+        "case_id": next_case_id,
+        "room_id": room_id,
+        "message_id": msg_id,
+        "username": message["username"],
+        "message": message["message"],
+        "category": message["category"],
+        "risk_score": message["risk_score"],
+        "severity": message["severity"],
+        "ai_explanation": message.get("ai_explanation", ""),
+        "recommended_action": message.get("recommended_action", "none"),
+        "policy_reason": message.get("policy_reason", ""),
+        "priority": priority,
+        "status": "Open",
+        "assigned_to": "Unassigned",
+        "created_at": int(time.time()),
+    }
+
+    cases_collection.insert_one(case.copy())
+
+    return {"success": True, "case": case}
+
+@app.get("/rooms/{room_id}/cases")
+def get_cases(room_id: str):
+    cases = list(
+        cases_collection.find(
+            {"room_id": room_id},
+            {"_id": 0}
+        ).sort("created_at", -1)
+    )
+    return cases
+
+@app.patch("/rooms/{room_id}/cases/{case_id}/{status}")
+def update_case_status(room_id: str, case_id: int, status: str):
+    valid_statuses = ["Open", "In Progress", "Resolved"]
+
+    if status not in valid_statuses:
+        return {"success": False, "error": "Invalid status"}
+    
+    result = cases_collection.update_one(
+        {"room_id": room_id, "case_id": case_id},
+        {"$set": {"status": status}}
+    )
+
+    if result.matched_count == 0:
+        return {"success": False, "error": "Case not found"}
+    
+    updated_case = cases_collection.find_one(
+        {"room_id": room_id, "case_id": case_id},
+        {"_id": 0}
+    )
+
+    return {"success": True, "case": updated_case}
 
 
 @app.websocket("/ws/rooms/{room_id}")
