@@ -21,6 +21,7 @@ const API_URL = "http://127.0.0.1:8000";
 
 function App() {
   const [messages, setMessages] = useState([]);
+  const [cases, setCases] = useState([]);
   const [username, setUsername] = useState("alin");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -29,11 +30,34 @@ function App() {
   const [user, setUser] = useState(null);
   const [authError, setAuthError] = useState("");
   const ws = useRef(null);
-  const [cases, setCases] = useState([]);
+  const [activePage, setActivePage] = useState("Dashboard");
 
+  const loadCases = async () => {
+    try {
+      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/cases`);
+      const result = await response.json();
+      setCases(result);
+    } catch (error) {
+      console.error("Failed to load cases:", error);
+    }
+  };
 
-  useEffect(() => {
-    if (!user) return;
+  const loadMessages = async () => {
+    try {
+      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/messages`);
+      const result = await response.json();
+      setMessages(result);
+    } catch (error) {
+      console.error("Failed to load messages:", error);
+    }
+  };
+
+useEffect(() => {
+  if (!user) return;
+
+  const initializeDashboard = async () => {
+    await loadCases();
+    await loadMessages();
 
     ws.current = new WebSocket(WS_URL);
 
@@ -54,9 +78,16 @@ function App() {
         alert(data.message);
       }
     };
+  };
 
-    return () => ws.current?.close();
-  }, [user]);
+  initializeDashboard();
+
+  return () => {
+    if (ws.current) {
+      ws.current.close();
+    }
+  };
+}, [user]);
 
   const handleAuth = async () => {
     setAuthError("");
@@ -100,6 +131,7 @@ function App() {
     localStorage.removeItem("liveguard_token");
     setUser(null);
     setMessages([]);
+    setCases([]);
   };
 
   const sendMessage = () => {
@@ -118,23 +150,16 @@ function App() {
 
   const createCase = async (id) => {
     try {
-      const response = await fetch(
-        `${API_URL}/rooms/${ROOM_ID}/cases/${id}`,
-        {
-          method: "POST",
-        }
-      );
+      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/cases/${id}`, {
+        method: "POST",
+      });
 
       const result = await response.json();
 
       if (result.success) {
         setCases((prev) => {
-          const exists = prev.some(
-            (c) => c.case_id === result.case.case_id
-          );
-
+          const exists = prev.some((c) => c.case_id === result.case.case_id);
           if (exists) return prev;
-
           return [result.case, ...prev];
         });
       }
@@ -155,9 +180,9 @@ function App() {
       const result = await response.json();
 
       if (result.success) {
-        setCases((prev) => 
-          prev.map((c) => 
-            c.case_id === caseId ? result.case : c));
+        setCases((prev) =>
+          prev.map((c) => (c.case_id === caseId ? result.case : c))
+        );
       }
     } catch (error) {
       console.error("Failed to update case status:", error);
@@ -350,12 +375,13 @@ function App() {
 
   return (
     <div className="bg-slate-950 text-white min-h-screen flex">
-      <Sidebar />
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
       <main className="flex-1 p-6 overflow-auto">
         <TopBar username={user.username} role={user.role} />
 
-        <div className="flex justify-between items-center mt-6 mb-6">
+        {activePage === "Dashboard" && (
+          <div className="flex justify-between items-center mt-6 mb-6">
           <div>
             <p className="text-slate-400">
               Real-time livestream moderation dashboard
@@ -373,7 +399,143 @@ function App() {
           >
             Logout
           </button>
-        </div>
+          </div>
+        )}
+
+        {activePage === "Live Streams" && (
+          <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
+            <h2 className="text-2xl font-bold mb-2">Live Streams</h2>
+            <p className="text-slate-400 mb-6">
+              Monitor active livestream rooms and safety status.
+            </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {["demo-room", "gaming-live", "shopping-live"].map((room) => (
+             <div
+                key={room}
+                className="bg-slate-900/80 border border-slate-700 rounded-xl p-5"
+              >
+              <div className="flex justify-between mb-3">
+                 <h3 className="font-semibold">{room}</h3>
+                 <span className="text-green-400 text-sm">LIVE</span>
+            </div>
+
+            <p className="text-slate-400 text-sm">12.4K viewers</p>
+            <p className="text-slate-400 text-sm mt-1">
+                Safety Score: {safetyScore}%
+            </p>
+
+            <button
+              onClick={() => setActivePage("Dashboard")}
+              className="mt-4 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm"
+            >
+              Open Dashboard
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+
+  {activePage === "Moderators" && (
+  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
+    <h2 className="text-2xl font-bold mb-2">Moderators</h2>
+    <p className="text-slate-400 mb-6">
+      View team members responsible for reviewing flagged content.
+    </p>
+
+    <div className="space-y-3">
+      {[user, { username: "maya", role: "Analyst" }, { username: "sam", role: "Admin" }].map(
+        (mod) => (
+          <div
+            key={mod.username}
+            className="bg-slate-900/80 border border-slate-700 rounded-xl p-4 flex justify-between"
+          >
+            <div>
+              <p className="font-semibold">@{mod.username}</p>
+              <p className="text-slate-500 text-sm">{mod.role}</p>
+            </div>
+
+            <span className="text-green-400 text-sm">Online</span>
+          </div>
+        )
+      )}
+    </div>
+  </div>
+)}
+
+{activePage === "Cases" && (
+  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
+    <h2 className="text-2xl font-bold mb-2">Cases</h2>
+    <p className="text-slate-400 mb-6">
+      Review and resolve safety cases created from flagged messages.
+    </p>
+
+    {cases.length === 0 ? (
+      <p className="text-slate-400">No cases created yet.</p>
+    ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {cases.map((caseItem) => (
+          <div
+            key={caseItem.case_id}
+            className="bg-slate-900/80 border border-slate-700 rounded-xl p-4"
+          >
+            <div className="flex justify-between mb-2">
+              <p className="font-semibold">Case #{caseItem.case_id}</p>
+              <span className="text-red-400 text-sm">{caseItem.priority}</span>
+            </div>
+
+            <p className="text-slate-300 text-sm">
+              @{caseItem.username}: “{caseItem.message}”
+            </p>
+
+            <p className="text-slate-500 text-xs mt-2">
+              {caseItem.category} · Risk {caseItem.risk_score}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{activePage === "Settings" && (
+  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
+    <h2 className="text-2xl font-bold mb-2">Settings</h2>
+    <p className="text-slate-400 mb-6">
+      Configure moderation thresholds and platform behaviour.
+    </p>
+
+    <div className="space-y-4 max-w-xl">
+      <div>
+        <label className="text-sm text-slate-400">High Risk Threshold</label>
+        <input
+          className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
+          value="70"
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400">Auto Flag Threshold</label>
+        <input
+          className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
+          value="35"
+          readOnly
+        />
+      </div>
+
+      <div>
+        <label className="text-sm text-slate-400">Current Room</label>
+        <input
+          className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
+          value={ROOM_ID}
+          readOnly
+        />
+      </div>
+    </div>
+  </div>
+)}
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-4">
@@ -561,7 +723,9 @@ function App() {
         </div>
 
         <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 mb-6">
-          <h2 className="text-lg font-semibold mb-4">User Reputation Monitor</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            User Reputation Monitor
+          </h2>
 
           {userReputationData.length === 0 ? (
             <p className="text-slate-400">No user activity yet.</p>
@@ -618,7 +782,7 @@ function App() {
 
           {cases.length === 0 ? (
             <p className="text-slate-400">No cases created yet.</p>
-          ): (
+          ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {cases.map((caseItem) => (
                 <div
@@ -640,7 +804,7 @@ function App() {
                   </div>
 
                   <p className="text-sm text-slate-300 mb-2">
-                    @{caseItem.username}: "{caseItem.message}"
+                    @{caseItem.username}: “{caseItem.message}”
                   </p>
 
                   <p className="text-xs text-slate-500 mb-4">
@@ -652,10 +816,12 @@ function App() {
                   </p>
 
                   <div className="flex gap-2">
-                    {["Open", "In Review", "Resolved"].map((status) => (
+                    {["Open", "Investigating", "Resolved"].map((status) => (
                       <button
                         key={status}
-                        onClick={() => updateCaseStatus(caseItem.case_id, status)}
+                        onClick={() =>
+                          updateCaseStatus(caseItem.case_id, status)
+                        }
                         className={`px-3 py-1 rounded-lg text-xs ${
                           caseItem.status === status
                             ? "bg-purple-600 text-white"
@@ -736,7 +902,8 @@ function App() {
                       Category: {msg.category}
                     </p>
 
-                    <div className="mt-3 bg-slate-900/80 border border-slate-700 rounded-xl p-3">
+                    {msg.ai_explanation && (
+                      <div className="mt-3 bg-slate-900/80 border border-slate-700 rounded-xl p-3">
                         <p className="text-xs text-purple-400 font-semibold mb-1">
                           AI Moderation Assistant
                         </p>
@@ -764,9 +931,10 @@ function App() {
                         <p className="text-xs text-slate-500 mt-3">
                           {msg.policy_reason}
                         </p>
-                    </div>
+                      </div>
+                    )}
 
-                    {msg.flags.length > 0 && (
+                    {msg.flags?.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-2">
                         {msg.flags.map((flag) => (
                           <span
@@ -827,12 +995,56 @@ function App() {
                         Category: {msg.category}
                       </p>
 
+                      {msg.ai_explanation && (
+                        <div className="mt-3 bg-slate-900/80 border border-slate-700 rounded-xl p-3">
+                          <p className="text-xs text-purple-400 font-semibold mb-1">
+                            AI Moderation Assistant
+                          </p>
+
+                          <p className="text-sm text-slate-300">
+                            {msg.ai_explanation}
+                          </p>
+
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <p className="text-slate-500">Recommended</p>
+                              <p className="text-slate-200 font-medium">
+                                {msg.recommended_action?.toUpperCase()}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-slate-500">Confidence</p>
+                              <p className="text-slate-200 font-medium">
+                                {msg.confidence}%
+                              </p>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-slate-500 mt-3">
+                            {msg.policy_reason}
+                          </p>
+                        </div>
+                      )}
+
                       {!canModerate ? (
                         <p className="mt-3 text-sm text-slate-500">
                           View-only access · Moderator role required
                         </p>
                       ) : msg.action_taken === "none" ? (
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {msg.recommended_action !== "none" && (
+                            <button
+                              onClick={() =>
+                                takeAction(msg.id, msg.recommended_action)
+                              }
+                              className="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded-lg text-sm"
+                            >
+                              Apply AI:{" "}
+                              {msg.recommended_action?.toUpperCase()}
+                            </button>
+                          )}
+
                           <button
                             onClick={() => takeAction(msg.id, "warn")}
                             className="bg-yellow-600 hover:bg-yellow-700 px-3 py-1 rounded-lg text-sm"

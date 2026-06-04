@@ -1,5 +1,7 @@
 import re
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+sentiment_analyzer = SentimentIntensityAnalyzer()
 
 TOXIC_KEYWORDS = {
     "idiot": 25,
@@ -33,6 +35,19 @@ SPAM_PATTERNS = [
     r"www\.",
     r"[A-Z]{10,}",
 ]
+
+def detect_negative_sentiment(text):
+    sentiment = sentiment_analyzer.polarity_scores(text)
+    compound = sentiment["compound"]
+
+    if compound <= -0.7:
+        return 35, ["negative_sentiment:high"]
+    elif compound <= -0.4:
+        return 20, ["negative_sentiment:medium"]
+    elif compound <= -0.2:
+        return 10, ["negative_sentiment:low"]
+
+    return 0, []
 
 
 def detect_keywords(text, keyword_map, category):
@@ -75,6 +90,10 @@ def classify_category(flags):
         return "Scam / Spam"
     if any(flag.startswith("toxic") for flag in flags):
         return "Harassment"
+    
+    if any(flag.startswith("negative_sentiment") for flag in flags):
+        return "Harassment"
+    
     if "spam_pattern" in flags or "shouting" in flags:
         return "Spam"
     return "Safe"
@@ -124,14 +143,15 @@ def build_ai_assistant(category, risk_score, flags):
 def analyse_message(text: str):
     total_score = 0
     all_flags = []
+    sentiment_score, sentiment_flags = detect_negative_sentiment(text)
 
     toxic_score, toxic_flags = detect_keywords(text, TOXIC_KEYWORDS, "toxic")
     threat_score, threat_flags = detect_keywords(text, THREAT_KEYWORDS, "threat")
     scam_score, scam_flags = detect_keywords(text, SCAM_KEYWORDS, "scam")
     spam_score, spam_flags = detect_spam_patterns(text)
 
-    total_score += toxic_score + threat_score + scam_score + spam_score
-    all_flags.extend(toxic_flags + threat_flags + scam_flags + spam_flags)
+    total_score += toxic_score + threat_score + scam_score + spam_score + sentiment_score
+    all_flags.extend(toxic_flags + threat_flags + scam_flags + spam_flags + sentiment_flags)
 
     risk_score = min(total_score, 100)
 
