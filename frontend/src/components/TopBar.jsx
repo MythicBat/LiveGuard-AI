@@ -1,6 +1,7 @@
 export default function TopBar({
   username,
   role,
+  room
 }) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex justify-between items-center">
@@ -10,7 +11,7 @@ export default function TopBar({
         </h2>
 
         <p className="text-slate-400 text-sm">
-          Monitoring Room: demo-room
+          Monitoring Room: {room}
         </p>
       </div>
 

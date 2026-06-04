@@ -15,9 +15,28 @@ import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import "./index.css";
 
-const ROOM_ID = "demo-room";
-const WS_URL = `ws://127.0.0.1:8000/ws/rooms/${ROOM_ID}`;
+const WS_BASE_URL = `ws://127.0.0.1:8000/ws/rooms`;
 const API_URL = "http://127.0.0.1:8000";
+const STREAM_ROOMS = [
+  {
+    id: "demo-room",
+    name: "Demo Stream Room",
+    category: "General",
+    viewers: "12.4K",
+  },
+  {
+    id: "gaming-live",
+    name: "Gaming Live Stream",
+    category: "Gaming",
+    viewers: "8.7K",
+  },
+  {
+    id: "shopping-live",
+    name: "Shopping Live Stream",
+    category: "E-commerce",
+    viewers: "21.1K",
+  },
+];
 
 function App() {
   const [messages, setMessages] = useState([]);
@@ -31,10 +50,11 @@ function App() {
   const [authError, setAuthError] = useState("");
   const ws = useRef(null);
   const [activePage, setActivePage] = useState("Dashboard");
+  const [activeRoom, setActiveRoom] = useState("demo-room");
 
   const loadCases = async () => {
     try {
-      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/cases`);
+      const response = await fetch(`${API_URL}/rooms/${activeRoom}/cases`);
       const result = await response.json();
       setCases(result);
     } catch (error) {
@@ -44,7 +64,7 @@ function App() {
 
   const loadMessages = async () => {
     try {
-      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/messages`);
+      const response = await fetch(`${API_URL}/rooms/${activeRoom}/messages`);
       const result = await response.json();
       setMessages(result);
     } catch (error) {
@@ -56,10 +76,13 @@ useEffect(() => {
   if (!user) return;
 
   const initializeDashboard = async () => {
+    setMessages([]);
+    setCases([]);
+
     await loadCases();
     await loadMessages();
 
-    ws.current = new WebSocket(WS_URL);
+    ws.current = new WebSocket(`${WS_BASE_URL}/${activeRoom}`);
 
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -87,7 +110,7 @@ useEffect(() => {
       ws.current.close();
     }
   };
-}, [user]);
+}, [user, activeRoom]);
 
   const handleAuth = async () => {
     setAuthError("");
@@ -150,7 +173,7 @@ useEffect(() => {
 
   const createCase = async (id) => {
     try {
-      const response = await fetch(`${API_URL}/rooms/${ROOM_ID}/cases/${id}`, {
+      const response = await fetch(`${API_URL}/rooms/${activeRoom}/cases/${id}`, {
         method: "POST",
       });
 
@@ -171,7 +194,7 @@ useEffect(() => {
   const updateCaseStatus = async (caseId, status) => {
     try {
       const response = await fetch(
-        `${API_URL}/rooms/${ROOM_ID}/cases/${caseId}/${status}`,
+        `${API_URL}/rooms/${activeRoom}/cases/${caseId}/${status}`,
         {
           method: "PATCH",
         }
@@ -192,7 +215,7 @@ useEffect(() => {
   const takeAction = async (id, action) => {
     try {
       const response = await fetch(
-        `${API_URL}/rooms/${ROOM_ID}/action/${id}/${action}`,
+        `${API_URL}/rooms/${activeRoom}/action/${id}/${action}`,
         {
           method: "POST",
         }
@@ -378,7 +401,7 @@ useEffect(() => {
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
       <main className="flex-1 p-6 overflow-auto">
-        <TopBar username={user.username} role={user.role} />
+        <TopBar username={user.username} role={user.role} room={activeRoom} />
 
         {activePage === "Dashboard" && (
           <div className="flex justify-between items-center mt-6 mb-6">
@@ -389,8 +412,23 @@ useEffect(() => {
 
             <p className="text-slate-500 text-sm mt-1">
               Current Stream Room:{" "}
-              <span className="text-purple-400">{ROOM_ID}</span>
+              <span className="text-purple-400">{activeRoom}</span>
             </p>
+            <div className="flex flex-wrap gap-3 mt-4">
+              {STREAM_ROOMS.map((room) => (
+                <button
+                  key={room.id}
+                  onClick={() => setActiveRoom(room.id)}
+                  className={`px-4 py-2 rounded-xl border text-sm transition ${
+                    activeRoom === room.id
+                      ? "bg-purple-600 border-purple-500 text-white"
+                      : "bg-slate-900/80 border-slate-700 text-slate-400 hover:bg-slate-800"
+                  }`}
+                >
+                  {room.name}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button
@@ -405,37 +443,49 @@ useEffect(() => {
         {activePage === "Live Streams" && (
           <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
             <h2 className="text-2xl font-bold mb-2">Live Streams</h2>
+
             <p className="text-slate-400 mb-6">
-              Monitor active livestream rooms and safety status.
+              Monitor and switch between active livestream rooms for moderation.
             </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {["demo-room", "gaming-live", "shopping-live"].map((room) => (
-             <div
-                key={room}
-                className="bg-slate-900/80 border border-slate-700 rounded-xl p-5"
-              >
-              <div className="flex justify-between mb-3">
-                 <h3 className="font-semibold">{room}</h3>
-                 <span className="text-green-400 text-sm">LIVE</span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {STREAM_ROOMS.map((room) => (
+                <div
+                  key={room.id}
+                  className={`bg-slate-900/80 border rounded-xl p-5 ${
+                    activeRoom === room.id
+                      ? "border-purple-500"
+                      : "border-slate-700"
+                  }`}
+                >
+                  <div className="flex justify-between mb-3">
+                    <h3 className="font-semibold">{room.name}</h3>
+                    <span className="text-sm text-green-400">LIVE</span>
+                  </div>
+
+                  <p className="text-slate-400 text-sm">
+                    ROOM ID: {room.id}
+                  </p>
+
+                  <p className="text-slate-400 text-sm">
+                    Category: {room.category}
+                  </p>
+
+                  <p className="text-slate-400 text-sm">
+                    Viewers: {room.viewers}
+                  </p>
+
+                  <button
+                    onClick={() => {setActiveRoom(room.id); setActivePage("Dashboard");}}
+                    className="mt-4 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm"
+                  >
+                    Open Dashboard
+                  </button>
+                </div>
+              ))}
             </div>
-
-            <p className="text-slate-400 text-sm">12.4K viewers</p>
-            <p className="text-slate-400 text-sm mt-1">
-                Safety Score: {safetyScore}%
-            </p>
-
-            <button
-              onClick={() => setActivePage("Dashboard")}
-              className="mt-4 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg text-sm"
-            >
-              Open Dashboard
-            </button>
           </div>
-        ))}
-      </div>
-    </div>
-  )}
+        )}
 
   {activePage === "Moderators" && (
   <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
@@ -529,7 +579,7 @@ useEffect(() => {
         <label className="text-sm text-slate-400">Current Room</label>
         <input
           className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
-          value={ROOM_ID}
+          value={activeRoom}
           readOnly
         />
       </div>
