@@ -1,4 +1,5 @@
 import re
+import os
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from ai_moderator import analyse_with_ai
 
@@ -178,9 +179,12 @@ def rule_based_analyse_message(text: str):
     }
 
 def analyse_message(text: str):
-    ai_result = analyse_with_ai(text)
+    mode = os.getenv("MODERATION_MODE", "ai")
 
-    if ai_result:
-        return ai_result
+    if mode == "ai":
+        ai_result = analyse_with_ai(text)
+
+        if ai_result:
+            return ai_result
     
     return rule_based_analyse_message(text)

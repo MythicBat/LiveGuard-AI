@@ -254,6 +254,14 @@ def get_cases(room_id: str):
     )
     return cases
 
+@app.get("/moderation/mode")
+def get_moderation_mode():
+    import os
+
+    return {
+        "mode": os.getenv("MODERATION_MODE", "ai")
+    }
+
 @app.patch("/rooms/{room_id}/cases/{case_id}/{status}")
 def update_case_status(room_id: str, case_id: int, status: str, payload: dict = Depends(decode_token_from_header)):
     if not require_moderator(payload):

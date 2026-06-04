@@ -56,6 +56,7 @@ function App() {
   const [severityFilter, setSeverityFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [caseStatusFilter, setCaseStatusFilter] = useState("All");
+  const [moderationMode, setModerationMode] = useState("ai");
 
   const filteredMessages = message.filter((msg) => {
     const matchesSearch = 
@@ -106,6 +107,10 @@ useEffect(() => {
 
     await loadCases();
     await loadMessages();
+
+    const modeResponse = await fetch(`${API_URL}/moderation/mode`);
+    const modeResult = await modeResponse.json();
+    setModerationMode(modeResult.mode);
 
     ws.current = new WebSocket(`${WS_BASE_URL}/${activeRoom}`);
 
@@ -627,6 +632,15 @@ useEffect(() => {
       </div>
 
       <div>
+        <label className="text-sm text-slate-400">Moderation Engine</label>
+        <input
+          className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
+          value={moderationMode === "ai" ? "ML Model: Toxic-BERT" : "Rule-based Engine"}
+          readOnly
+        />
+      </div>
+
+      <div>
         <label className="text-sm text-slate-400">Current Room</label>
         <input
           className="w-full mt-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2"
@@ -1055,7 +1069,7 @@ useEffect(() => {
                     {msg.ai_explanation && (
                       <div className="mt-3 bg-slate-900/80 border border-slate-700 rounded-xl p-3">
                         <p className="text-xs text-purple-400 font-semibold mb-1">
-                          AI Moderation Assistant
+                          Engine: {msg.ai_model || "Rule-based"}
                         </p>
 
                         <p className="text-sm text-slate-300">
