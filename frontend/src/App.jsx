@@ -11,6 +11,7 @@ import {
   Pie,
   Cell,
 } from "recharts";
+import toast, { Toaster } from "react-hot-toast";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import "./index.css";
@@ -89,6 +90,14 @@ useEffect(() => {
 
       if (data.type === "chat_message") {
         setMessages((prev) => [data, ...prev]);
+
+        if (data.severity === "high") {
+          toast.error(`High-risk message from @${data.username}`);
+        }
+
+        if (data.is_flagged && data.severity !== "high") {
+          toast(`Flagged message from @${data.username}`);
+        }
       }
 
       if (data.type === "moderation_action") {
@@ -98,7 +107,7 @@ useEffect(() => {
       }
 
       if (data.type === "system") {
-        alert(data.message);
+        toast.error(data.message);
       }
     };
   };
@@ -186,6 +195,8 @@ useEffect(() => {
           if (exists) return prev;
           return [result.case, ...prev];
         });
+
+        toast.success(`Case #${result.case.case_id} created`);
       }
     } catch (error) {
       console.error("Failed to create case:", error);
@@ -208,6 +219,8 @@ useEffect(() => {
         setCases((prev) =>
           prev.map((c) => (c.case_id === caseId ? result.case : c))
         );
+
+        toast.success(`Case moved to ${status}`);
       }
     } catch (error) {
       console.error("Failed to update case status:", error);
@@ -238,6 +251,8 @@ useEffect(() => {
         setMessages((prev) =>
           prev.map((msg) => (msg.id === id ? result.message : msg))
         );
+
+        toast.success(`${action.toUpperCase()} applied`);
       }
     } catch (error) {
       console.error("Failed to take action:", error);
@@ -410,6 +425,7 @@ useEffect(() => {
   return (
     <div className="bg-slate-950 text-white min-h-screen flex">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      <Toaster position="top-right" />
 
       <main className="flex-1 p-6 overflow-auto">
         <TopBar username={user.username} role={user.role} room={activeRoom} />
