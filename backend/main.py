@@ -1,9 +1,9 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from moderation import analyse_message
 from models import ChatMessage, UserRegister, UserLogin
 from database import messages_collection, banned_users_collection, users_collection, cases_collection
-from auth import hash_password, verify_password, create_access_token
+from auth import hash_password, verify_password, create_access_token, decode_token_from_header
 import json
 import time
 
@@ -19,6 +19,14 @@ app.add_middleware(
 
 # room_id -> list of connected websockets
 active_rooms = {}
+
+def require_moderator(payload):
+    if not payload:
+        return False
+    
+    role = payload.get("role")
+
+    return role in ["Moderator", "Admin"]
 
 
 @app.get("/")
@@ -118,7 +126,13 @@ def get_banned_users(room_id: str):
 
 
 @app.post("/rooms/{room_id}/action/{msg_id}/{action}")
-async def take_action(room_id: str, msg_id: int, action: str):
+async def take_action(room_id: str, msg_id: int, action: str, payload: dict = Depends(decode_token_from_header)):
+    if not require_moderator(payload):
+        return {
+            "success": False,
+            "error": "Unauthorized: Moderator or Admin role required"
+        }
+    
     valid_actions = ["warn", "mute", "ban"]
 
     if action not in valid_actions:
@@ -172,7 +186,13 @@ async def take_action(room_id: str, msg_id: int, action: str):
     return {"success": True, "message": updated_message}
 
 @app.post("/rooms/{room_id}/cases/{msg_id}")
-def create_case(room_id: str, msg_id: int):
+def create_case(room_id: str, msg_id: int, payload: dict = Depends(decode_token_from_header)):
+    if not require_moderator(payload):
+        return {
+            "success": False,
+            "error": "Unauthorized: Moderator or Admin role required"
+        }
+
     message = messages_collection.find_one(
         {"room_id": room_id, "id": msg_id},
         {"_id": 0}
@@ -235,7 +255,13 @@ def get_cases(room_id: str):
     return cases
 
 @app.patch("/rooms/{room_id}/cases/{case_id}/{status}")
-def update_case_status(room_id: str, case_id: int, status: str):
+def update_case_status(room_id: str, case_id: int, status: str, payload: dict = Depends(decode_token_from_header)):
+    if not require_moderator(payload):
+        return {
+            "success": False,
+            "error": "Unauthorized: Moderator or Admin role required"
+        }
+
     valid_statuses = ["Open", "In Progress", "Resolved"]
 
     if status not in valid_statuses:

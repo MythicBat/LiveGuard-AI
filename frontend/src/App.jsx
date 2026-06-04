@@ -175,6 +175,7 @@ useEffect(() => {
     try {
       const response = await fetch(`${API_URL}/rooms/${activeRoom}/cases/${id}`, {
         method: "POST",
+        headers: getAuthHeaders(),
       });
 
       const result = await response.json();
@@ -197,6 +198,7 @@ useEffect(() => {
         `${API_URL}/rooms/${activeRoom}/cases/${caseId}/${status}`,
         {
           method: "PATCH",
+          headers: getAuthHeaders(),
         }
       );
 
@@ -212,12 +214,21 @@ useEffect(() => {
     }
   };
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem("liveguard_token");
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
   const takeAction = async (id, action) => {
     try {
       const response = await fetch(
         `${API_URL}/rooms/${activeRoom}/action/${id}/${action}`,
         {
           method: "POST",
+          headers: getAuthHeaders(),
         }
       );
 
