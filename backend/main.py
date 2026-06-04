@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from moderation import analyse_message
 from models import ChatMessage, UserRegister, UserLogin
-from database import messages_collection, banned_users_collection, users_collection, cases_collection
+from database import messages_collection, banned_users_collection, users_collection, cases_collection, audit_logs_collection
 from auth import hash_password, verify_password, create_access_token, decode_token_from_header
 import json
 import time
@@ -27,6 +27,18 @@ def require_moderator(payload):
     role = payload.get("role")
 
     return role in ["Moderator", "Admin"]
+
+def write_audit_log(room_id, actor, action, target_user=None, details=None):
+    log = {
+        "room_id": room_id,
+        "actor": actor,
+        "action": action,
+        "target_user": target_user,
+        "details": details or {},
+        "timestamp": int(time.time()),
+    }
+
+    audit_logs_collection.insert_one(log)
 
 
 @app.get("/")
@@ -173,6 +185,19 @@ async def take_action(room_id: str, msg_id: int, action: str, payload: dict = De
         {"_id": 0}
     )
 
+    write_audit_log(
+        room_id=room_id,
+        actor=payload.get("username", "unknown"),
+        action=f"message_{action}",
+        target_user=message["username"],
+        details={
+            "message_id": msg_id,
+            "message": message["message"],
+            "category": message["category"],
+            "risk_score": message["risk_score"],
+        },
+    )
+
     # Broadcast moderation action to everyone in the same room
     if room_id in active_rooms:
         for client in active_rooms[room_id]:
@@ -242,6 +267,18 @@ def create_case(room_id: str, msg_id: int, payload: dict = Depends(decode_token_
 
     cases_collection.insert_one(case.copy())
 
+    write_audit_log(
+        room_id=room_id,
+        actor=payload.get("username", "unknown"),
+        action="case_created",
+        target_user=message["username"],
+        details={
+            "case_id": next_case_id,
+            "message_id": msg_id,
+            "priority": priority, 
+        },
+    )
+
     return {"success": True, "case": case}
 
 @app.get("/rooms/{room_id}/cases")
@@ -261,6 +298,17 @@ def get_moderation_mode():
     return {
         "mode": os.getenv("MODERATION_MODE", "ai")
     }
+
+@app.get("/rooms/{room_id}/audit-logs")
+def get_audit_logs(room_id: str):
+    logs = list(
+        audit_logs_collection.find(
+            {"room_id": room_id},
+            {"_id": 0}
+        ).sort("timestamp", -1)
+    )
+
+    return logs
 
 @app.patch("/rooms/{room_id}/cases/{case_id}/{status}")
 def update_case_status(room_id: str, case_id: int, status: str, payload: dict = Depends(decode_token_from_header)):
@@ -286,6 +334,17 @@ def update_case_status(room_id: str, case_id: int, status: str, payload: dict = 
     updated_case = cases_collection.find_one(
         {"room_id": room_id, "case_id": case_id},
         {"_id": 0}
+    )
+
+    write_audit_log(
+        room_id=room_id,
+        actor=payload.get("username", "unknown"),
+        action="case_status_updated",
+        target_user=updated_case["username"],
+        details={
+            "case_id": case_id,
+            "new_status": status,
+        },
     )
 
     return {"success": True, "case": updated_case}
@@ -319,6 +378,15 @@ async def websocket_room(websocket: WebSocket, room_id: str):
             )
 
             if banned_user:
+                write_audit_log(
+                    room_id=room_id,
+                    actor=chat.username,
+                    action="banned_user_attempted_message",
+                    target_user=chat.username,
+                    details={
+                        "attempted_message": chat.message,
+                    },
+                )
                 await websocket.send_json(
                     {
                         "type": "system",
