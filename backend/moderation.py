@@ -1,5 +1,6 @@
 import re
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+from ai_moderator import analyse_with_ai
 
 sentiment_analyzer = SentimentIntensityAnalyzer()
 
@@ -140,7 +141,7 @@ def build_ai_assistant(category, risk_score, flags):
     }
 
 
-def analyse_message(text: str):
+def rule_based_analyse_message(text: str):
     total_score = 0
     all_flags = []
     sentiment_score, sentiment_flags = detect_negative_sentiment(text)
@@ -175,3 +176,11 @@ def analyse_message(text: str):
         "is_flagged": risk_score >= 35,
         **ai_result,
     }
+
+def analyse_message(text: str):
+    ai_result = analyse_with_ai(text)
+
+    if ai_result:
+        return ai_result
+    
+    return rule_based_analyse_message(text)
