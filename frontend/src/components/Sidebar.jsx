@@ -4,6 +4,7 @@ import {
   FaUsers,
   FaFlag,
   FaCog,
+  FaClipboardList,
 } from "react-icons/fa";
 
 export default function Sidebar({ activePage, setActivePage }) {
@@ -13,6 +14,7 @@ export default function Sidebar({ activePage, setActivePage }) {
     { icon: <FaUsers />, label: "Moderators" },
     { icon: <FaFlag />, label: "Cases" },
     { icon: <FaCog />, label: "Settings" },
+    { icon: <FaClipboardList />, label: "Audit Logs" },
   ];
 
   return (

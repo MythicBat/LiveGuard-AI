@@ -57,6 +57,7 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [caseStatusFilter, setCaseStatusFilter] = useState("All");
   const [moderationMode, setModerationMode] = useState("ai");
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const filteredMessages = message.filter((msg) => {
     const matchesSearch = 
@@ -98,6 +99,17 @@ function App() {
     }
   };
 
+  const loadAuditLogs = async () => {
+    try {
+      const response = await fetch(`${API_URL}/rooms/${activeRoom}/audit-logs`);
+      const result = await response.json();
+
+      setAuditLogs(result);
+    } catch (error) {
+      console.error("Failed to load audit logs: ", error);
+    }
+  };
+
 useEffect(() => {
   if (!user) return;
 
@@ -107,6 +119,7 @@ useEffect(() => {
 
     await loadCases();
     await loadMessages();
+    await loadAuditLogs();
 
     const modeResponse = await fetch(`${API_URL}/moderation/mode`);
     const modeResult = await modeResponse.json();
@@ -193,6 +206,7 @@ useEffect(() => {
     setUser(null);
     setMessages([]);
     setCases([]);
+    setAuditLogs([]);
   };
 
   const sendMessage = () => {
@@ -226,6 +240,7 @@ useEffect(() => {
         });
 
         toast.success(`Case #${result.case.case_id} created`);
+        loadAuditLogs();
       }
     } catch (error) {
       console.error("Failed to create case:", error);
@@ -250,6 +265,7 @@ useEffect(() => {
         );
 
         toast.success(`Case moved to ${status}`);
+        loadAuditLogs();
       }
     } catch (error) {
       console.error("Failed to update case status:", error);
@@ -282,6 +298,7 @@ useEffect(() => {
         );
 
         toast.success(`${action.toUpperCase()} applied`);
+        loadAuditLogs();
       }
     } catch (error) {
       console.error("Failed to take action:", error);
@@ -598,6 +615,55 @@ useEffect(() => {
             <p className="text-slate-500 text-xs mt-2">
               {caseItem.category} · Risk {caseItem.risk_score}
             </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{activePage === "Audit Logs" && (
+  <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-6">
+    <h2 className="text-2xl font-bold mb-2">Audit Logs</h2>
+
+    <p className="text-slate-400 mb-6">
+      Track moderation actions, case updates, and blocked user activity.
+    </p>
+
+    {auditLogs.length === 0 ? (
+      <p className="text-slate-400">No audit logs yet.</p>
+    ) : (
+      <div className="space-y-3">
+        {auditLogs.map((log, index) => (
+          <div
+            key={index}
+            className="bg-slate-900/80 border border-slate-700 rounded-xl p-4"
+          >
+            <div className="flex justify-between mb-2">
+              <p className="font-semibold">
+                {log.action.replaceAll("_", " ").toUpperCase()}
+              </p>
+
+              <span className="text-xs text-slate-500">
+                {new Date(log.timestamp * 1000).toLocaleString()}
+              </span>
+            </div>
+
+            <p className="text-sm text-slate-300">
+              Actor: @{log.actor}
+            </p>
+
+            {log.target_user && (
+              <p className="text-sm text-slate-400">
+                Target: @{log.target_user}
+              </p>
+            )}
+
+            {log.details && (
+              <pre className="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-slate-400 overflow-auto">
+                {JSON.stringify(log.details, null, 2)}
+              </pre>
+            )}
           </div>
         ))}
       </div>
