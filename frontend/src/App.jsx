@@ -52,6 +52,30 @@ function App() {
   const ws = useRef(null);
   const [activePage, setActivePage] = useState("Dashboard");
   const [activeRoom, setActiveRoom] = useState("demo-room");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [caseStatusFilter, setCaseStatusFilter] = useState("All");
+
+  const filteredMessages = message.filter((msg) => {
+    const matchesSearch = 
+      msg.username.toLowerCase().includes(messageSearch.toLowerCase()) ||
+      msg.message.toLowerCase().includes(messageSearch.toLowerCase());
+
+    const matchesSeverity = 
+      severityFilter === "All" || msg.severity === severityFilter.toLowerCase();
+      
+    const matchesCategory = 
+      categoryFilter === "All" || msg.category === categoryFilter;
+      
+    return matchesSearch && matchesSeverity && matchesCategory;
+  });
+
+  const filteredCases = cases.filter((caseItem) => {
+    return (
+      caseStatusFilter === "All" || caseItem.status === caseStatusFilter
+    );
+  });
 
   const loadCases = async () => {
     try {
@@ -552,7 +576,7 @@ useEffect(() => {
       <p className="text-slate-400">No cases created yet.</p>
     ) : (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {cases.map((caseItem) => (
+        {filteredCases.map((caseItem) => (
           <div
             key={caseItem.case_id}
             className="bg-slate-900/80 border border-slate-700 rounded-xl p-4"
@@ -915,6 +939,55 @@ useEffect(() => {
           )}
         </div>
 
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 mb-6">
+          <h2 className="text-lg font-semibold mb-4">Search & Filters</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input
+              value={messageSearch}
+              onChange={(e) => setMessageSearch(e.target.value)}
+              placeholder="Search username or message..."
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 p-2 outline-none"
+            />
+
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 outline-none"
+            >
+              <option>All</option>
+              <option>Safe</option>
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 outline-none"
+            >
+              <option>All</option>
+              <option>Safe</option>
+              <option>Harassment</option>
+              <option>Threat</option>
+              <option>Scam</option>
+              <option>Spam</option>
+            </select>
+
+            <select
+              value={caseStatusFilter}
+              onChange={(e) => setCaseStatusFilter(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 outline-none"
+            >
+              <option>All</option>
+              <option>Open</option>
+              <option>Investigating</option>
+              <option>Resolved</option>
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <section className="lg:col-span-2 bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5">
             <h2 className="text-xl font-semibold mb-4">Live Chat Simulator</h2>
@@ -944,7 +1017,7 @@ useEffect(() => {
 
             <div className="space-y-3 max-h-[520px] overflow-y-auto">
               <AnimatePresence>
-                {messages.map((msg) => (
+                {filteredMessages.map((msg) => (
                   <motion.div
                     key={msg.id}
                     initial={{ opacity: 0, y: 10 }}
